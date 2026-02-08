@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDIC Quiz Generator - Content-Aware Medical Question Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/compromise"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        :root {
+            --color-primary-blue: #1e3a8a;
+            --color-primary-teal: #0d9488;
+            --color-success: #10b981;
+            --color-error: #ef4444;
+            --color-warning: #f59e0b;
+            --color-neutral: #64748b;
+            --gradient-header: linear-gradient(135deg, #1e3a8a 0%, #0d9488 100%);
+            --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
+            min-height: 100vh;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+        .app-header {
+            text-align: center;
+            padding: 3rem 2rem;
+            background: var(--gradient-header);
+            color: white;
+            border-radius: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .app-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: var(--shadow-lg);
+            border-radius: 1rem;
+            padding: 2rem;
+        }
+
+        .dropzone {
+            border: 3px dashed var(--color-primary-teal);
+            border-radius: 1rem;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(13, 148, 136, 0.05);
+        }
+
+        .dropzone:hover { background: rgba(13, 148, 136, 0.1); transform: scale(1.02); }
+        .dropzone.dragover { background: rgba(13, 148, 136, 0.2); border-color: var(--color-success); }
+
+        .file-input-hidden { display: none; }
+
+        .btn {
+            padding: 0.875rem 1.75rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: var(--gradient-header);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 20px 25px rgba(0, 0, 0, 0.15); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .file-list { margin-top: 1.5rem; text-align: left; }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: #f1f5f9;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid var(--color-primary-teal);
+        }
+
+        .file-name { font-weight: 600; color: var(--color-primary-blue); }
+        .file-size { font-size: 0.875rem; color: var(--color-neutral); }
+        
+        .remove-file {
+            background: none;
+            border: none;
+            color: var(--color-error);
+            cursor: pointer;
+            font-size: 1.25rem;
+            padding: 0.25rem;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 1rem;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--gradient-header);
+            transition: width 0.4s ease;
+        }
+
+        .analysis-panel {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .analysis-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.875rem;
+        }
+
+        .analysis-item:last-child { border-bottom: none; }
+
+        .entity-tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: #dbeafe;
+            color: #1e40af;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            margin: 0.25rem;
+            font-weight: 600;
+        }
+
+        .hidden { display: none !important; }
+
+        .question-card {
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+
+        .clinical-vignette {
+            background: #f1f5f9;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            margin: 1.5rem 0;
+            border-left: 4px solid var(--color-primary-teal);
+        }
+
+        .answer-options {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .option-button {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: left;
+            width: 100%;
+        }
+
+        .option-button:hover:not(.disabled) { border-color: var(--color-primary-teal); background: #f0fdfa; }
+        .option-button.selected { border-color: var(--color-primary-teal); background: #ccfbf1; }
+        .option-button.correct { border-color: var(--color-success); background: #d1fae5; }
+        .option-button.incorrect { border-color: var(--color-error); background: #fee2e2; }
+        .option-button.disabled { cursor: not-allowed; opacity: 0.7; }
+
+        .feedback-panel {
+            margin-top: 2rem;
+            padding: 2rem;
+            border-radius: 0.75rem;
+        }
+
+        .feedback-panel.correct { background: #d1fae5; border: 2px solid var(--color-success); }
+        .feedback-panel.incorrect { background: #fee2e2; border: 2px solid var(--color-error); }
+
+        .badge {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .badge.high-confidence { background: #d1fae5; color: #065f46; }
+        .badge.medium-confidence { background: #fed7aa; color: #92400e; }
+        .badge.low-confidence { background: #fecaca; color: #991b1b; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .spinner {
+            border: 4px solid rgba(13, 148, 136, 0.1);
+            border-top-color: var(--color-primary-teal);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 1rem auto;
+        }
+
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid var(--color-warning);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid var(--color-error);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="app-header">
+            <h1 class="app-title">📚 EDIC Quiz Generator</h1>
+            <p>Upload PDF study materials • AI analyzes content • Generates contextual questions</p>
+        </div>
+
+        <!-- Upload Screen -->
+        <div id="uploadScreen" class="glass-effect">
+            <div class="dropzone" id="dropzone">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">📁</div>
+                <h2>Upload Study Materials</h2>
+                <p>Drag & drop PDF files or click to browse</p>
+                <p style="font-size: 0.875rem; color: var(--color-neutral); margin-top: 0.5rem;">
+                    Multiple files supported • Max 50MB each • PDF only
+                </p>
+                <input type="file" id="fileInput" accept=".pdf" multiple class="file-input-hidden">
+                <label for="fileInput" class="btn btn-primary" style="margin-top: 1rem;">
+                    📄 Select PDF Files
+                </label>
+            </div>
+
+            <div id="fileList" class="file-list hidden"></div>
+
+            <div id="analysisSection" class="hidden" style="margin-top: 2rem;">
+                <h3>🔍 Content Analysis</h3>
+                <div class="progress-bar-container">
+                    <div id="analysisBar" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0;">
+                    <div style="text-align: center; padding: 1rem; background: white; border-radius: 0.5rem;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--color-primary-blue);" id="statPages">0</div>
+                        <div style="font-size: 0.875rem; color: var(--color-neutral);">Pages</div>
+                    </div>
+                    <div style="text-align: center; padding: 1rem; background: white; border-radius: 0.5rem;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--color-primary-blue);" id="statEntities">0</div>
+                        <div style="font-size: 0.875rem; color: var(--color-neutral);">Medical Entities</div>
+                    </div>
+                    <div style="text-align: center; padding: 1rem; background: white; border-radius: 0.5rem;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--color-primary-blue);" id="statFacts">0</div>
+                        <div style="font-size: 0.875rem; color: var(--color-neutral);">Clinical Facts</div>
+                    </div>
+                    <div style="text-align: center; padding: 1rem; background: white; border-radius: 0.5rem;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--color-primary-blue);" id="statQuestions">0</div>
+                        <div style="font-size: 0.875rem; color: var(--color-neutral);">Valid Questions</div>
+                    </div>
+                </div>
+
+                <div id="entityTags" style="margin: 1rem 0;"></div>
+
+                <div class="analysis-panel" id="analysisLog">
+                    <div class="analysis-item">Ready to analyze content...</div>
+                </div>
+
+                <div class="warning-box hidden" id="qualityWarning">
+                    <strong>⚠️ Content Quality Warning</strong>
+                    <p id="qualityMessage">Insufficient clinical content detected for reliable question generation.</p>
+                </div>
+            </div>
+
+            <div id="actionButtons" class="hidden" style="text-align: center; margin-top: 2rem;">
+                <button class="btn btn-primary" onclick="startAnalysis()" id="analyzeBtn" style="font-size: 1.125rem; padding: 1rem 2rem;">
+                    🔍 Analyze & Generate Quiz
+                </button>
+            </div>
+
+            <div id="uploadError" class="error-message hidden"></div>
+        </div>
+
+        <!-- Processing Screen -->
+        <div id="processingScreen" class="glass-effect hidden" style="text-align: center; padding: 4rem;">
+            <div class="spinner"></div>
+            <h3>Generating Questions from Your Materials...</h3>
+            <p id="processingText">Using NLP to create clinically accurate questions</p>
+            <div class="progress-bar-container" style="max-width: 400px; margin: 2rem auto;">
+                <div id="generationBar" class="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <!-- Quiz Screen -->
+        <div id="quizScreen" class="hidden">
+            <div style="background: white; padding: 1rem; border-radius: 0.75rem; margin-bottom: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600;">Question <span id="currentQ">1</span>/<span id="totalQ">30</span></span>
+                    <span style="font-weight: 600;">Score: <span id="scoreDisplay">0</span>/<span id="totalScore">30</span></span>
+                </div>
+                <div class="progress-bar-container">
+                    <div id="progressBar" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <div id="questionCard" class="question-card glass-effect"></div>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="resultsScreen" class="hidden"></div>
+    </div>
+
+    <script>
+        // Initialize PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // Global State
+        let uploadedFiles = [];
+        let extractedContent = [];
+        let medicalEntities = [];
+        let clinicalFacts = [];
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let failedQuestions = [];
+        let selectedAnswer = null;
+
+        // Medical terminology database for validation
+        const medicalKnowledgeBase = {
+            conditions: ['sepsis', 'septic shock', 'ards', 'aki', 'acute kidney injury', 'pneumonia', 'meningitis', 'pancreatitis', 'hepatic failure', 'cardiac arrest', 'myocardial infarction', 'stroke', 'pulmonary embolism', 'diabetic ketoacidosis', 'hyperglycemic hyperosmolar state'],
+            
+            treatments: ['antibiotics', 'vasopressors', 'mechanical ventilation', 'crrt', 'dialysis', 'surgery', 'drainage', 'intubation', 'tracheostomy', 'ecmo', 'pacemaker', 'defibrillation'],
+            
+            diagnostics: ['blood culture', 'ct scan', 'mri', 'x-ray', 'ultrasound', 'echocardiogram', 'eeg', 'lumbar puncture', 'bronchoscopy', 'biopsy'],
+            
+            drugs: ['norepinephrine', 'epinephrine', 'vasopressin', 'dopamine', 'dobutamine', 'milrinone', 'phenylephrine', 'propofol', 'midazolam', 'fentanyl', 'morphine', 'rocuronium', 'vecuronium'],
+            
+            values: {
+                'map': { normal: '65-100', unit: 'mmHg', critical_low: 65 },
+                'systolic bp': { normal: '90-140', unit: 'mmHg', critical_low: 90 },
+                'diastolic bp': { normal: '60-90', unit: 'mmHg', critical_low: 60 },
+                'heart rate': { normal: '60-100', unit: 'bpm', critical_high: 120, critical_low: 50 },
+                'respiratory rate': { normal: '12-20', unit: '/min', critical_high: 30, critical_low: 8 },
+                'spo2': { normal: '95-100', unit: '%', critical_low: 90 },
+                'temperature': { normal: '36.5-37.5', unit: '°C', critical_high: 38.3, critical_low: 36 },
+                'lactate': { normal: '0.5-1.5', unit: 'mmol/L', critical_high: 2 },
+                'creatinine': { normal: '0.7-1.3', unit: 'mg/dL', critical_high: 1.5 },
+                'ph': { normal: '7.35-7.45', unit: '', critical_low: 7.35, critical_high: 7.45 },
+                'paco2': { normal: '35-45', unit: 'mmHg', critical_high: 50, critical_low: 30 },
+                'pao2': { normal: '80-100', unit: 'mmHg', critical_low: 60 },
+                'bicarbonate': { normal: '22-28', unit: 'mEq/L', critical_low: 18, critical_high: 30 },
+                'sodium': { normal: '135-145', unit: 'mEq/L', critical_low: 130, critical_high: 150 },
+                'potassium': { normal: '3.5-5.0', unit: 'mEq/L', critical_low: 3.0, critical_high: 6.0 },
+                'glucose': { normal: '70-100', unit: 'mg/dL', critical_low: 70, critical_high: 200 },
+                'hemoglobin': { normal: '12-16', unit: 'g/dL', critical_low: 7 },
+                'platelet': { normal: '150-400', unit: 'x10³/μL', critical_low: 100 },
+                'wbc': { normal: '4.5-11', unit: 'x10³/μL', critical_high: 12, critical_low: 4 },
+                'inr': { normal: '0.9-1.1', unit: '', critical_high: 1.5 },
+                'ptt': { normal: '25-35', unit: 'seconds', critical_high: 60 }
+            }
+        };
+
+        // Setup event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            setupFileUpload();
+        });
+
+        function setupFileUpload() {
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('fileInput');
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('dragover');
+            });
+
+            dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('dragover');
+                const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+                handleFiles(files);
+            });
+
+            fileInput.addEventListener('change', (e) => handleFiles(Array.from(e.target.files)));
+        }
+
+        function handleFiles(files) {
+            const validFiles = files.filter(file => {
+                if (file.type !== 'application/pdf') {
+                    showError(`"${file.name}" is not a PDF file`);
+                    return false;
+                }
+                if (file.size > 50 * 1024 * 1024) {
+                    showError(`"${file.name}" exceeds 50MB limit`);
+                    return false;
+                }
+                return true;
+            });
+
+            validFiles.forEach(file => {
+                if (!uploadedFiles.find(f => f.name === file.name)) {
+                    uploadedFiles.push(file);
+                }
+            });
+
+            updateFileList();
+            document.getElementById('actionButtons').classList.remove('hidden');
+            document.getElementById('analysisSection').classList.remove('hidden');
+            hideError();
+        }
+
+        function updateFileList() {
+            const fileList = document.getElementById('fileList');
+            if (uploadedFiles.length === 0) {
+                fileList.classList.add('hidden');
+                return;
+            }
+
+            fileList.innerHTML = uploadedFiles.map((file, index) => `
+                <div class="file-item">
+                    <div>
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                    </div>
+                    <button class="remove-file" onclick="removeFile(${index})" title="Remove">×</button>
+                </div>
+            `).join('');
+            fileList.classList.remove('hidden');
+        }
+
+        function removeFile(index) {
+            uploadedFiles.splice(index, 1);
+            updateFileList();
+            if (uploadedFiles.length === 0) {
+                document.getElementById('actionButtons').classList.add('hidden');
+                document.getElementById('analysisSection').classList.add('hidden');
+            }
+        }
+
+        async function startAnalysis() {
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner" style="width: 20px; height: 20px; display: inline-block; margin: 0; vertical-align: middle;"></div> Analyzing...';
+
+            extractedContent = [];
+            medicalEntities = [];
+            clinicalFacts = [];
+
+            // Extract text from all PDFs
+            for (let i = 0; i < uploadedFiles.length; i++) {
+                updateAnalysisLog(`Processing ${uploadedFiles[i].name}...`);
+                try {
+                    const content = await extractPDFText(uploadedFiles[i]);
+                    extractedContent.push(content);
+                    updateAnalysisLog(`✓ Extracted ${content.pages} pages from ${uploadedFiles[i].name}`);
+                } catch (error) {
+                    updateAnalysisLog(`✗ Error: ${error.message}`);
+                }
+                document.getElementById('analysisBar').style.width = `${((i + 1) / uploadedFiles.length) * 30}%`;
+            }
+
+            // Combine all text
+            const allText = extractedContent.map(c => c.text).join(' ');
+            document.getElementById('statPages').textContent = extractedContent.reduce((sum, c) => sum + c.pages, 0);
+
+            // Analyze with Compromise.js NLP
+            updateAnalysisLog('Running NLP analysis...');
+            const doc = nlp(allText);
+            
+            // Extract medical entities
+            extractMedicalEntities(doc, allText);
+            document.getElementById('statEntities').textContent = medicalEntities.length;
+            document.getElementById('analysisBar').style.width = '60%';
+
+            // Extract clinical facts
+            extractClinicalFacts(allText);
+            document.getElementById('statFacts').textContent = clinicalFacts.length;
+            document.getElementById('analysisBar').style.width = '80%';
+
+            // Display entities
+            displayEntities();
+
+            // Generate questions
+            updateAnalysisLog('Generating validated questions...');
+            questions = generateValidatedQuestions();
+            document.getElementById('statQuestions').textContent = questions.length;
+            document.getElementById('analysisBar').style.width = '100%';
+
+            // Check quality
+            if (questions.length < 10) {
+                document.getElementById('qualityWarning').classList.remove('hidden');
+                document.getElementById('qualityMessage').textContent = 
+                    `Only ${questions.length} high-confidence questions could be generated. The uploaded materials may lack sufficient clinical detail or structured medical content.`;
+                btn.disabled = false;
+                btn.innerHTML = '🔍 Retry Analysis';
+                return;
+            }
+
+            updateAnalysisLog(`✓ Successfully generated ${questions.length} validated questions`);
+
+            setTimeout(() => {
+                document.getElementById('uploadScreen').classList.add('hidden');
+                document.getElementById('processingScreen').classList.remove('hidden');
+                startQuiz();
+            }, 1500);
+        }
+
+        async function extractPDFText(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = '';
+            
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + '\n';
+            }
+
+            return {
+                filename: file.name,
+                pages: pdf.numPages,
+                text: fullText
+            };
+        }
+
+        function extractMedicalEntities(doc, text) {
+            // Extract noun phrases (potential medical terms)
+            const nouns = doc.nouns().out('array');
+            const phrases = doc.match('#Adjective+ #Noun+').out('array');
+            
+            // Combine and filter for medical relevance
+            const candidates = [...new Set([...nouns, ...phrases])];
+            
+            candidates.forEach(term => {
+                const lower = term.toLowerCase();
+                // Check if term matches known medical categories
+                for (let [category, items] of Object.entries(medicalKnowledgeBase)) {
+                    if (category === 'values') continue;
+                    if (items.some(item => lower.includes(item) || item.includes(lower))) {
+                        if (!medicalEntities.find(e => e.term === term)) {
+                            medicalEntities.push({
+                                term: term,
+                                category: category,
+                                confidence: 'high'
+                            });
+                        }
+                    }
+                }
+            });
+
+            // Extract numerical values with units
+            const numberPattern = /\b(\d+(?:\.\d+)?)\s*(mmHg|mmol\/L|mEq\/L|mg\/dL|bpm|\/min|%|°C|mm|cm|ml|L)\b/gi;
+            let match;
+            while ((match = numberPattern.exec(text)) !== null) {
+                medicalEntities.push({
+                    term: `${match[1]} ${match[2]}`,
+                    category: 'measurement',
+                    value: parseFloat(match[1]),
+                    unit: match[2],
+                    confidence: 'high'
+                });
+            }
+        }
+
+        function extractClinicalFacts(text) {
+            const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+            
+            sentences.forEach(sentence => {
+                const trimmed = sentence.trim();
+                if (trimmed.length < 30 || trimmed.length > 300) return;
+
+                // Look for definition patterns
+                const definitionMatch = trimmed.match(/(.+?)\s+(?:is|are)\s+(?:defined as|characterized by|a|an)\s+(.+)/i);
+                if (definitionMatch) {
+                    clinicalFacts.push({
+                        type: 'definition',
+                        subject: definitionMatch[1].trim(),
+                        predicate: definitionMatch[2].trim(),
+                        source: trimmed,
+                        confidence: calculateConfidence(trimmed)
+                    });
+                }
+
+                // Look for clinical criteria/scoring
+                const criteriaMatch = trimmed.match(/(\d+)\s*(points?|criteria?|score)/i);
+                if (criteriaMatch) {
+                    clinicalFacts.push({
+                        type: 'criteria',
+                        value: criteriaMatch[1],
+                        concept: trimmed.substring(0, 50),
+                        source: trimmed,
+                        confidence: calculateConfidence(trimmed)
+                    });
+                }
+
+                // Look for threshold values
+                const thresholdMatch = trimmed.match(/([<>]=?\s*\d+(?:\.\d+)?)\s*(mmHg|mmol|mEq|mg|\/dL|%)/i);
+                if (thresholdMatch) {
+                    clinicalFacts.push({
+                        type: 'threshold',
+                        operator: thresholdMatch[1],
+                        unit: thresholdMatch[2],
+                        source: trimmed,
+                        confidence: calculateConfidence(trimmed)
+                    });
+                }
+
+                // Look for drug dosing
+                const dosingMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*(mg|mcg|g|units?)\s*(?:per|\/)\s*(kg|hr|hour|day)/i);
+                if (dosingMatch) {
+                    clinicalFacts.push({
+                        type: 'dosing',
+                        dose: `${dosingMatch[1]} ${dosingMatch[2]}/${dosingMatch[3]}`,
+                        source: trimmed,
+                        confidence: calculateConfidence(trimmed)
+                    });
+                }
+            });
+
+            // Sort by confidence
+            clinicalFacts.sort((a, b) => b.confidence - a.confidence);
+        }
+
+        function calculateConfidence(sentence) {
+            let score = 0.5;
+            const lower = sentence.toLowerCase();
+            
+            // Boost for medical terminology
+            if (medicalKnowledgeBase.conditions.some(c => lower.includes(c))) score += 0.2;
+            if (medicalKnowledgeBase.treatments.some(t => lower.includes(t))) score += 0.15;
+            if (medicalKnowledgeBase.diagnostics.some(d => lower.includes(d))) score += 0.15;
+            
+            // Boost for numerical data
+            if (/\d+/.test(sentence)) score += 0.1;
+            
+            // Boost for structured language
+            if (/is defined as|are characterized by|criteria include|manifests as/i.test(sentence)) score += 0.2;
+            
+            return Math.min(score, 1.0);
+        }
+
+        function displayEntities() {
+            const container = document.getElementById('entityTags');
+            const topEntities = medicalEntities.slice(0, 20);
+            container.innerHTML = topEntities.map(e => 
+                `<span class="entity-tag">${e.term} (${e.category})</span>`
+            ).join('');
+        }
+
+        function generateValidatedQuestions() {
+            const generated = [];
+            let id = 1;
+
+            // Generate from definitions (highest confidence)
+            clinicalFacts.filter(f => f.type === 'definition' && f.confidence > 0.7).forEach(fact => {
+                if (generated.length >= 15) return;
+                
+                const q = createDefinitionQuestion(fact, id++);
+                if (q) generated.push(q);
+            });
+
+            // Generate from criteria
+            clinicalFacts.filter(f => f.type === 'criteria' && f.confidence > 0.6).forEach(fact => {
+                if (generated.length >= 22) return;
+                
+                const q = createCriteriaQuestion(fact, id++);
+                if (q) generated.push(q);
+            });
+
+            // Generate from thresholds
+            clinicalFacts.filter(f => f.type === 'threshold' && f.confidence > 0.6).forEach(fact => {
+                if (generated.length >= 28) return;
+                
+                const q = createThresholdQuestion(fact, id++);
+                if (q) generated.push(q);
+            });
+
+            // Generate from dosing
+            clinicalFacts.filter(f => f.type === 'dosing' && f.confidence > 0.6).forEach(fact => {
+                if (generated.length >= 30) return;
+                
+                const q = createDosingQuestion(fact, id++);
+                if (q) generated.push(q);
+            });
+
+            return generated.slice(0, 30).map((q, idx) => ({
+                ...q,
+                number: idx + 1,
+                difficulty: idx < 6 ? 'Easy' : idx < 21 ? 'Moderate' : 'Hard'
+            }));
+        }
+
+        function createDefinitionQuestion(fact, id) {
+            const subject = fact.subject;
+            const predicate = fact.predicate;
+            
+            // Create distractors from other definitions or generic wrong answers
+            const distractors = generateDefinitionDistractors(subject, predicate);
+            
+            const options = [
+                predicate,
+                ...distractors.slice(0, 3)
+            ].sort(() => 0.5 - Math.random());
+
+            const correctIndex = options.indexOf(predicate);
+            if (correctIndex === -1) return null;
+
+            return {
+                id: id,
+                type: 'definition',
+                confidence: fact.confidence,
+                vignette: `According to the study materials regarding ${subject}...`,
+                questionText: `What is the correct definition or description of ${subject}?`,
+                options: options.map((opt, idx) => ({
+                    letter: ['A', 'B', 'C', 'D'][idx],
+                    text: opt.substring(0, 150) + (opt.length > 150 ? '...' : '')
+                })),
+                correctAnswer: ['A', 'B', 'C', 'D'][correctIndex],
+                explanation: `The study materials define ${subject} as: "${predicate}"`,
+                reference: 'Extracted from uploaded study materials',
+                sourceFact: fact
+            };
+        }
+
+        function createCriteriaQuestion(fact, id) {
+            const options = [
+                `${fact.value} criteria`,
+                `${parseInt(fact.value) + 1} criteria`,
+                `${parseInt(fact.value) - 1} criteria`,
+                `${parseInt(fact.value) + 2} criteria`
+            ].sort(() => 0.5 - Math.random());
+
+            const correctIndex = options.indexOf(`${fact.value} criteria`);
+
+            return {
+                id: id,
+                type: 'criteria',
+                confidence: fact.confidence,
+                vignette: fact.source.substring(0, 200) + '...',
+                questionText: `According to the clinical criteria described, how many criteria/points are required?`,
+                options: options.map((opt, idx) => ({
+                    letter: ['A', 'B', 'C', 'D'][idx],
+                    text: opt
+                })),
+                correctAnswer: ['A', 'B', 'C', 'D'][correctIndex],
+                explanation: `The study materials indicate that ${fact.value} criteria/points are required.`,
+                reference: 'Extracted from uploaded study materials',
+                sourceFact: fact
+            };
+        }
+
+        function createThresholdQuestion(fact, id) {
+            const threshold = fact.operator;
+            const unit = fact.unit;
+            
+            // Generate clinically relevant distractors
+            const baseValue = parseFloat(threshold.replace(/[^0-9.]/g, ''));
+            const options = [
+                `${threshold} ${unit}`,
+                `${baseValue * 0.8} ${unit}`,
+                `${baseValue * 1.2} ${unit}`,
+                `${baseValue * 1.5} ${unit}`
+            ].sort(() => 0.5 - Math.random());
+
+            const correctIndex = options.indexOf(`${threshold} ${unit}`);
+
+            return {
+                id: id,
+                type: 'threshold',
+                confidence: fact.confidence,
+                vignette: `Clinical threshold for intervention...`,
+                questionText: `What is the threshold value mentioned in the text for ${unit} measurement?`,
+                options: options.map((opt, idx) => ({
+                    letter: ['A', 'B', 'C', 'D'][idx],
+                    text: opt
+                })),
+                correctAnswer: ['A', 'B', 'C', 'D'][correctIndex],
+                explanation: `The study materials indicate the threshold is ${threshold} ${unit}.`,
+                reference: 'Extracted from uploaded study materials',
+                sourceFact: fact
+            };
+        }
+
+        function createDosingQuestion(fact, id) {
+            const options = [
+                fact.dose,
+                fact.dose.replace(/\d+/, m => parseFloat(m) * 2),
+                fact.dose.replace(/\d+/, m => parseFloat(m) * 0.5),
+                fact.dose.replace(/\/\w+/, '/day')
+            ].sort(() => 0.5 - Math.random());
+
+            const correctIndex = options.indexOf(fact.dose);
+
+            return {
+                id: id,
+                type: 'dosing',
+                confidence: fact.confidence,
+                vignette: `Drug dosing information from study materials...`,
+                questionText: `What is the correct dosing regimen mentioned in the text?`,
+                options: options.map((opt, idx) => ({
+                    letter: ['A', 'B', 'C', 'D'][idx],
+                    text: opt
+                })),
+                correctAnswer: ['A', 'B', 'C', 'D'][correctIndex],
+                explanation: `The study materials indicate the dosing is ${fact.dose}.`,
+                reference: 'Extracted from uploaded study materials',
+                sourceFact: fact
+            };
+        }
+
+        function generateDefinitionDistractors(subject, correctPredicate) {
+            const distractors = [];
+            
+            // Use other definitions as distractors
+            clinicalFacts
+                .filter(f => f.type === 'definition' && f.subject !== subject)
+                .slice(0, 2)
+                .forEach(f => distractors.push(f.predicate));
+            
+            // Add generic wrong answers if needed
+            if (distractors.length < 3) {
+                distractors.push(
+                    `A condition unrelated to ${subject}`,
+                    `The opposite clinical manifestation of ${subject}`,
+                    `A rare variant that presents asymptomatically`
+                );
+            }
+            
+            // Ensure distractors are different from correct answer
+            return distractors.filter(d => 
+                d.toLowerCase() !== correctPredicate.toLowerCase() &&
+                d.length > 10
+            );
+        }
+
+        function startQuiz() {
+            document.getElementById('totalQ').textContent = questions.length;
+            document.getElementById('totalScore').textContent = questions.length;
+            
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 10;
+                document.getElementById('generationBar').style.width = `${progress}%`;
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        document.getElementById('processingScreen').classList.add('hidden');
+                        document.getElementById('quizScreen').classList.remove('hidden');
+                        displayQuestion();
+                    }, 500);
+                }
+            }, 150);
+        }
+
+        function displayQuestion() {
+            const question = questions[currentQuestionIndex];
+            const questionCard = document.getElementById('questionCard');
+
+            document.getElementById('currentQ').textContent = currentQuestionIndex + 1;
+            document.getElementById('progressBar').style.width = `${((currentQuestionIndex + 1) / questions.length) * 100}%`;
+
+            const confidenceBadge = question.confidence > 0.8 ? 'high-confidence' : 
+                                   question.confidence > 0.6 ? 'medium-confidence' : 'low-confidence';
+            const confidenceText = question.confidence > 0.8 ? 'High Confidence' : 
+                                  question.confidence > 0.6 ? 'Medium Confidence' : 'Review Source';
+
+            questionCard.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <div>
+                        <span class="badge ${confidenceBadge}">${confidenceText}</span>
+                        <span style="font-size: 0.875rem; color: var(--color-neutral); margin-left: 0.5rem;">
+                            Based on your materials
+                        </span>
+                    </div>
+                    <span style="font-weight: 600; color: var(--color-neutral);">Q${question.number}/${questions.length}</span>
+                </div>
+
+                <div class="clinical-vignette">
+                    <p><strong>Source Context:</strong></p>
+                    <p>${question.vignette}</p>
+                </div>
+
+                <div style="font-size: 1.25rem; font-weight: 600; margin: 1.5rem 0; color: var(--color-primary-blue);">
+                    ${question.questionText}
+                </div>
+
+                <div class="answer-options">
+                    ${question.options.map(opt => `
+                        <button class="option-button" onclick="selectAnswer('${opt.letter}')" data-letter="${opt.letter}">
+                            <span style="font-weight: 700; font-size: 1.125rem; color: var(--color-primary-blue); min-width: 30px;">${opt.letter})</span>
+                            <span>${opt.text}</span>
+                        </button>
+                    `).join('')}
+                </div>
+
+                <button id="submitBtn" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;" disabled onclick="submitAnswer()">
+                    Submit Answer
+                </button>
+            `;
+        }
+
+        function selectAnswer(letter) {
+            selectedAnswer = letter;
+            document.querySelectorAll('.option-button').forEach(btn => btn.classList.remove('selected'));
+            document.querySelector(`[data-letter="${letter}"]`)?.classList.add('selected');
+            document.getElementById('submitBtn').disabled = false;
+        }
+
+        function submitAnswer() {
+            const question = questions[currentQuestionIndex];
+            const isCorrect = selectedAnswer === question.correctAnswer;
+            
+            if (isCorrect) score++;
+            else failedQuestions.push({...question, userAnswer: selectedAnswer});
+
+            document.getElementById('scoreDisplay').textContent = score;
+
+            document.querySelectorAll('.option-button').forEach(btn => {
+                btn.classList.add('disabled');
+                btn.onclick = null;
+                if (btn.dataset.letter === question.correctAnswer) btn.classList.add('correct');
+                else if (btn.dataset.letter === selectedAnswer && !isCorrect) btn.classList.add('incorrect');
+            });
+
+            document.getElementById('submitBtn').remove();
+
+            const feedbackHTML = `
+                <div class="feedback-panel ${isCorrect ? 'correct' : 'incorrect'}">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="font-size: 2.5rem;">${isCorrect ? '✓' : '✗'}</div>
+                        <h3 style="font-size: 1.5rem; font-weight: 700;">${isCorrect ? 'Correct!' : 'Incorrect'}</h3>
+                    </div>
+                    <div style="margin: 1rem 0; padding: 1rem; background: white; border-radius: 0.5rem;">
+                        <p><strong>Your Answer:</strong> ${selectedAnswer}</p>
+                        <p><strong>Correct Answer:</strong> ${question.correctAnswer}</p>
+                    </div>
+                    <div style="margin-top: 1.5rem; padding: 1.5rem; background: white; border-radius: 0.75rem;">
+                        <h4 style="margin-bottom: 1rem;">📖 Explanation</h4>
+                        <p>${question.explanation}</p>
+                        <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--color-neutral);">
+                            <strong>Source:</strong> ${question.reference}
+                        </p>
+                    </div>
+                    <button class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;" onclick="nextQuestion()">
+                        ${currentQuestionIndex < questions.length - 1 ? 'Next Question →' : 'View Results'}
+                    </button>
+                </div>
+            `;
+            questionCard.insertAdjacentHTML('beforeend', feedbackHTML);
+        }
+
+        function nextQuestion() {
+            selectedAnswer = null;
+            currentQuestionIndex++;
+            if (currentQuestionIndex < questions.length) displayQuestion();
+            else showResults();
+        }
+
+        function showResults() {
+            document.getElementById('quizScreen').classList.add('hidden');
+            const resultsScreen = document.getElementById('resultsScreen');
+            resultsScreen.classList.remove('hidden');
+            
+            const percentage = Math.round((score / questions.length) * 100);
+            const passed = score >= questions.length * 0.7;
+
+            resultsScreen.innerHTML = `
+                <div class="glass-effect" style="padding: 3rem; text-align: center;">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">${passed ? '🏆' : '📚'}</div>
+                    <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">${passed ? 'Mastery Achieved!' : 'Review Recommended'}</h1>
+                    <div style="font-size: 4rem; font-weight: 700; color: var(--color-primary-blue); margin: 1rem 0;">
+                        ${percentage}%
+                    </div>
+                    <p style="font-size: 1.25rem; color: var(--color-neutral);">
+                        You scored ${score} out of ${questions.length} questions correctly
+                    </p>
+                    <div style="display: inline-block; padding: 1rem 2rem; margin-top: 1rem; border-radius: 2rem; background: ${passed ? 'var(--color-success)' : 'var(--color-warning)'}; color: white; font-weight: 700;">
+                        ${passed ? '✓ PASS' : '⚠ REVIEW NEEDED'}
+                    </div>
+                </div>
+
+                ${failedQuestions.length > 0 ? `
+                    <div class="glass-effect" style="margin-top: 2rem; padding: 2rem; border: 2px solid var(--color-warning);">
+                        <h3>Questions Requiring Review (${failedQuestions.length})</h3>
+                        <p style="color: var(--color-neutral); margin: 0.5rem 0;">
+                            These questions were generated from your study materials and require review.
+                        </p>
+                        <button class="btn btn-primary" onclick="exportFailedQuestions()" style="margin: 1rem 0;">
+                            💾 Export Review List
+                        </button>
+                    </div>
+                ` : ''}
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 2rem;">
+                    <button class="btn btn-primary" onclick="location.reload()">
+                        🔄 Start New Quiz
+                    </button>
+                </div>
+            `;
+        }
+
+        function exportFailedQuestions() {
+            const content = failedQuestions.map(q => 
+                `Q${q.number} [${q.type.toUpperCase()}]\n` +
+                `Question: ${q.questionText}\n` +
+                `Your Answer: ${q.userAnswer} | Correct: ${q.correctAnswer}\n` +
+                `Source: ${q.vignette}\n` +
+                `---\n`
+            ).join('\n');
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `EDIC_Review_${new Date().toISOString().split('T')[0]}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function updateAnalysisLog(message) {
+            const log = document.getElementById('analysisLog');
+            const item = document.createElement('div');
+            item.className = 'analysis-item';
+            item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(item);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('uploadError');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => errorDiv.classList.add('hidden'), 5000);
+        }
+
+        function hideError() {
+            document.getElementById('uploadError').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
